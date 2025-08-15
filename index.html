@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Phiêu Lưu Chiến Đấu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="weapon-switch" style="position:fixed;right:8px;top:8px;z-index:2147483647;display:flex;flex-direction:column;gap:24px;">
+            <!-- Dải 6 viên đạn đặt lên trên đầu khu vực đổi vũ khí -->
+            <div class="ammo-strip" aria-label="Đạn còn lại">
+                <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <!-- Đưa nút súng lên trên, sau đó tới nút kiếm -->
+            <button id="weapon-gun" class="weapon-btn active" title="Súng" style="width:88px;height:88px;border-radius:14px;border-width:4px;font-size:44px;display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:0;">🔫</button>
+            <button id="weapon-sword" class="weapon-btn" title="Kiếm" style="width:88px;height:88px;border-radius:14px;border-width:4px;font-size:44px;display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:0;">⚔️</button>
+        </div>
+        <div class="controls">
+            <div class="info">
+                <span id="health">Máu: 100</span>
+                <span id="score">Điểm: 0</span>
+                <span id="defense-status">Bất tử: Tắt</span>
+                <span id="special">Tuyệt chiêu: Sẵn sàng</span>
+            </div>
+            <div class="mobile-controls">
+                <div class="direction-buttons">
+                    <button id="left">←</button>
+                    <button id="right">→</button>
+                </div>
+                <div class="action-buttons">
+                    <button id="jump" title="Nhảy">↑</button>
+                    <button id="shoot" class="shoot-btn ammo-ok" title="Tấn công">
+                        <span class="icon">🔫</span>
+                    </button>
+                    <button id="reload" title="Nạp đạn">⟳</button>
+                    <button id="defend">Bất tử</button>
+                    <button id="special-attack">Tuyệt Chiêu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="instructions">
+        <h2>Hướng dẫn:</h2>
+        <p>Di chuyển: Phím mũi tên trái/phải</p>
+        <p>Nhảy: Phím mũi tên lên</p>
+        <p id="attack-instruction">Tấn công: Phím Space</p>
+        <p>Bất tử: Phím 1</p>
+        <p>Tuyệt chiêu: Phím X (khi đã sẵn sàng)</p>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 800px at 50% 40%, #0e1630 0%, #060a18 60%, #03060f 100%);
+  color: #e6efff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  display: grid;
+  place-items: center;
+}
+
+.game-container {
+  position: relative;
+  width: 800px;
+  max-width: 95vw;
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.7) 98%, transparent 100%) repeat,
+    radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.5) 98%, transparent 100%) repeat,
+    radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.6) 98%, transparent 100%) repeat,
+    linear-gradient(#061024, #040a19);
+  background-size: 800px 480px, 900px 540px, 700px 420px, cover;
+  border: 2px solid #1e90ff; /* giữ viền xanh */
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 24px rgba(56,103,214,0.15);
+}
+
+.hud {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  text-shadow: 0 1px 0 #000, 0 0 8px rgba(110,160,255,0.5);
+  font-weight: 600;
+}
+
+.hud span {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(7,16,38,0.45);
+  border: 1px solid rgba(64,102,187,0.35);
+}
+
+.help {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 14px;
+  color: #b9c9ff;
+  opacity: 0.9;
+}
+
+.help kbd {
+  background: #1a2440;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #3b64c4;
+  color: #dfe8ff;
+}
+
+/* Trạng thái overlay (tạm dừng / thua) vẽ trong canvas, ghi chú style cho đồng nhất */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Responsive nhỏ hơn */
+@media (max-width: 860px) {
+  .hud {
+    font-size: 12px;
+    gap: 8px;
+  }
+  .hud span {
+    padding: 3px 6px;
+  }
+}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Space Shooter</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="game-container">
+    <canvas id="gameCanvas" width="800" height="480"></canvas>
+    <div class="hud">
+      <span id="score">Điểm: 0</span>
+      <span id="lives">Mạng: 3</span>
+      <span id="wave">Đợt: 1</span>
+      <span id="bot">Bot: Bật</span>
+    </div>
+    <div class="help">
+      Điều khiển: ← → hoặc A D | Bắn: Space | Tạm dừng: P | Chơi lại: R
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

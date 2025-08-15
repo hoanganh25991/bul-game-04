@@ -1,0 +1,261 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #333;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.game-container {
+  position: relative;
+  width: 800px;
+  max-width: 100%;
+  margin-bottom: 20px;
+}
+
+canvas {
+  background-color: #87CEEB;
+  display: block;
+  width: 100%;
+  height: 480px;
+  border: 3px solid #1e90ff; /* giữ viền xanh */
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+
+.info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.mobile-controls {
+  display: flex; /* hiển thị cả trên desktop */
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.direction-buttons,
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.mobile-controls button {
+  padding: 12px;
+  font-size: 18px;
+  background-color: rgba(255,255,255,0.25);
+  border: 2px solid #fff;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.mobile-controls button:active {
+  background-color: rgba(255,255,255,0.45);
+}
+
+#special-attack {
+  background-color: rgba(255,215,0,0.45); /* Màu vàng cho tuyệt chiêu */
+}
+
+/* Nút bắn (giữ lại class để làm mờ khi hết đạn) */
+.shoot-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 48px;
+  gap: 4px;
+  border: 2px solid #1e90ff; /* xanh khi còn đạn */
+}
+.shoot-btn .icon {
+  font-size: 22px;
+  line-height: 1;
+}
+/* Các class trạng thái cho nút bắn */
+.shoot-btn.ammo-ok {
+  border-color: #1e90ff;
+  box-shadow: inset 0 0 14px rgba(30,144,255,0.28);
+}
+.shoot-btn.ammo-empty {
+  border-color: #888;
+  box-shadow: none;
+  filter: grayscale(0.2);
+  /* độ mờ icon + nút được JS set thêm bằng style.opacity */
+}
+
+/* Nút nạp đạn */
+#reload {
+  background-color: rgba(30,144,255,0.25);
+  border: 2px solid #1e90ff;
+  color: #e8f2ff;
+}
+#reload:hover:not(:disabled) {
+  background-color: rgba(30,144,255,0.35);
+}
+#reload:disabled {
+  opacity: 0.6;
+  border-color: #8892a6;
+  background-color: rgba(255,255,255,0.15);
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* Hướng dẫn */
+.instructions {
+  background-color: rgba(0,0,0,0.7);
+  padding: 15px;
+  border-radius: 5px;
+  max-width: 800px;
+  text-align: center;
+}
+.instructions h2 {
+  margin-bottom: 10px;
+  color: #FFD700;
+}
+
+/* Bộ đổi vũ khí bên phải */
+.weapon-switch {
+  position: fixed;
+  right: 8px;
+  top: 8px;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  z-index: 2147483647;
+  pointer-events: auto;
+}
+
+.weapon-btn {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  border: 3px solid #ffffff;
+  background: rgba(0,0,0,0.55);
+  color: #ffffff;
+  font-size: 42px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+}
+
+.weapon-btn:hover {
+  background: rgba(0,0,0,0.5);
+}
+
+.weapon-btn.active {
+  background: #1e90ff;
+  border-color: #cfe9ff;
+}
+
+/* Khi hết đạn: làm mờ nút chọn súng lớn */
+.weapon-btn.empty {
+  opacity: 0.5;
+  filter: grayscale(0.3);
+  border-color: #8892a6;
+}
+
+/* Dải 6 viên đạn đặt trên đầu khu vực đổi vũ khí */
+.weapon-switch .ammo-strip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.35);
+  border: 2px solid #cfe9ff;
+  border-radius: 10px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}
+
+.weapon-switch .ammo-strip i {
+  display: inline-block;
+  width: 10px;
+  height: 16px;
+  background: #9ad2ff;
+  border: 1px solid #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(30,144,255,0.45);
+}
+
+.weapon-switch .ammo-strip i.off {
+  opacity: 0.22;
+  filter: grayscale(0.85);
+  box-shadow: none;
+  background: rgba(154,210,255,0.4);
+}
+
+/* Mobile ưu tiên to, dễ bấm */
+@media (max-width: 768px) {
+  .weapon-switch {
+    position: fixed !important;
+    right: 8px !important;
+    top: 8px !important;
+    transform: none !important;
+    gap: 24px !important;
+    z-index: 2147483647 !important;
+  }
+  .weapon-btn {
+    width: 88px !important;
+    height: 88px !important;
+    font-size: 44px !important;
+    padding: 0 !important;
+    border-width: 4px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+  }
+  .mobile-controls {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .direction-buttons,
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  button {
+    padding: 15px;
+    font-size: 18px;
+    background-color: rgba(255,255,255,0.3);
+    border: 2px solid #fff;
+    border-radius: 5px;
+    color: #fff;
+    cursor: pointer;
+  }
+  button:active {
+    background-color: rgba(255,255,255,0.5);
+  }
+  #special-attack {
+    background-color: rgba(255,215,0,0.5);
+  }
+}
