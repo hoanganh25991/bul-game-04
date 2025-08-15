@@ -13,8 +13,9 @@ let specialReady = true;
 
 // Đạn cho súng + nạp đạn
 let ammo = 6;
-let reloadReady = true;
-let reloadSec = 0;
+let reloading = false;
+let reloadIntervalId = null;
+let reloadRemaining = 0;
 
  // Camera và thế giới
 let cameraX = 0; // vị trí camera theo trục X (cuộn ngang)
@@ -223,6 +224,14 @@ document.getElementById('special-attack').addEventListener('mouseup', () => keys
 document.getElementById('defend').addEventListener('mousedown', () => { keys[49] = true; keys[97] = true; });
 document.getElementById('defend').addEventListener('mouseup', () => { keys[49] = false; keys[97] = false; });
 
+// Nút nạp đạn (5 giây)
+const btnReload = document.getElementById('reload');
+if (btnReload) {
+    const doReload = (e) => { e.preventDefault(); beginReload(5); };
+    btnReload.addEventListener('click', doReload);
+    btnReload.addEventListener('touchstart', doReload, { passive: false });
+}
+
 // Chuyển vũ khí (🔫 súng, ⚔️ kiếm)
 let currentWeapon = 'gun';
 const btnGun = document.getElementById('weapon-gun');
@@ -275,32 +284,57 @@ function updateAmmoUI() {
     // Làm mờ nút chọn súng lớn ở góc phải khi hết đạn
     const wg = document.getElementById('weapon-gun');
     if (wg) wg.classList.toggle('empty', ammo <= 0);
+
+    // Cập nhật trạng thái nút nạp
+    updateReloadUI();
 }
-function triggerReload() {
-    if (!reloadReady) return;
-    // Nạp đạn ngay lập tức
-    ammo = 6;
-    updateAmmoUI();
-    reloadReady = false;
-    reloadSec = 5;
-    const r = document.getElementById('reload');
-    if (r) { r.disabled = true; r.textContent = '⟳ ' + reloadSec; }
-    const intId = setInterval(() => {
-        reloadSec--;
-        const rr = document.getElementById('reload');
-        if (rr) rr.textContent = (reloadSec > 0) ? ('⟳ ' + reloadSec) : '⟳';
-        if (reloadSec <= 0) {
-            clearInterval(intId);
-            reloadReady = true;
-            if (rr) { rr.disabled = false; rr.textContent = '⟳'; }
+function updateReloadUI() {
+    const rbtn = document.getElementById('reload');
+    const isGun = (currentWeapon === 'gun');
+    if (!rbtn) return;
+
+    // Hiển thị chỉ khi dùng súng
+    rbtn.style.display = isGun ? 'inline-flex' : 'none';
+    if (!isGun) return;
+
+    if (reloading) {
+        rbtn.disabled = true;
+        rbtn.textContent = `Nạp… ${reloadRemaining}s`;
+    } else if (ammo >= 6) {
+        rbtn.disabled = true;
+        rbtn.textContent = 'Đã đầy';
+    } else {
+        rbtn.disabled = false;
+        rbtn.textContent = 'Nạp đạn';
+    }
+}
+
+function beginReload(seconds = 5) {
+    if (reloading || ammo >= 6) return;
+    reloading = true;
+    reloadRemaining = seconds;
+    updateReloadUI();
+
+    if (reloadIntervalId) {
+        clearInterval(reloadIntervalId);
+        reloadIntervalId = null;
+    }
+    reloadIntervalId = setInterval(() => {
+        reloadRemaining = Math.max(0, reloadRemaining - 1);
+        updateReloadUI();
+        if (reloadRemaining <= 0) {
+            clearInterval(reloadIntervalId);
+            reloadIntervalId = null;
+            ammo = 6;
+            reloading = false;
+            updateAmmoUI();
+            updateReloadUI();
         }
     }, 1000);
 }
-const reloadBtn = document.getElementById('reload');
-if (reloadBtn) {
-    reloadBtn.addEventListener('click', (e) => { e.preventDefault(); triggerReload(); });
-    reloadBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerReload(); });
-}
+
+// Tự động nạp khi hết đạn: 5 giây
+function startAutoReload() { beginReload(5); }
 
 const btnSpawnBoss = document.getElementById('spawn-boss');
 if (btnSpawnBoss) btnSpawnBoss.addEventListener('click', () => {
@@ -330,6 +364,7 @@ function createBullet() {
     if (currentWeapon === 'gun') {
         ammo = Math.max(0, ammo - 1);
         updateAmmoUI();
+        if (ammo === 0) startAutoReload();
     }
 }
 

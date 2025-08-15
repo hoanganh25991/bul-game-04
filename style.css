@@ -139,24 +139,24 @@ canvas {
 /* Bộ đổi vũ khí bên phải */
 .weapon-switch {
   position: fixed;
-  right: 8px;
-  top: 8px;
+  right: clamp(6px, 2vmin, 18px);
+  top: clamp(6px, 2vmin, 18px);
   transform: none;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: clamp(12px, 3vmin, 32px);
   z-index: 2147483647;
   pointer-events: auto;
 }
 
 .weapon-btn {
-  width: 84px;
-  height: 84px;
-  border-radius: 14px;
-  border: 3px solid #ffffff;
+  width: clamp(56px, 10vmin, 96px);
+  height: clamp(56px, 10vmin, 96px);
+  border-radius: clamp(10px, 2vmin, 16px);
+  border: clamp(2px, 0.6vmin, 4px) solid #ffffff;
   background: rgba(0,0,0,0.55);
   color: #ffffff;
-  font-size: 42px;
+  font-size: clamp(28px, 5vmin, 48px);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -187,24 +187,24 @@ canvas {
 /* Dải 6 viên đạn đặt trên đầu khu vực đổi vũ khí */
 .weapon-switch .ammo-strip {
   display: flex;
-  gap: 6px;
+  gap: clamp(4px, 1.2vmin, 10px);
   align-items: center;
   justify-content: center;
-  padding: 6px 8px;
+  padding: clamp(4px, 1.2vmin, 10px) clamp(6px, 2vmin, 14px);
   background: rgba(0,0,0,0.35);
-  border: 2px solid #cfe9ff;
-  border-radius: 10px;
+  border: clamp(1px, 0.4vmin, 3px) solid #cfe9ff;
+  border-radius: clamp(8px, 2vmin, 14px);
   box-shadow: 0 6px 14px rgba(0,0,0,0.25);
 }
 
 .weapon-switch .ammo-strip i {
   display: inline-block;
-  width: 10px;
-  height: 16px;
+  width: clamp(8px, 1.4vmin, 14px);
+  height: clamp(12px, 2.2vmin, 22px);
   background: #9ad2ff;
-  border: 1px solid #ffffff;
-  border-radius: 2px;
-  box-shadow: 0 0 6px rgba(30,144,255,0.45);
+  border: clamp(1px, 0.3vmin, 2px) solid #ffffff;
+  border-radius: clamp(2px, 0.6vmin, 3px);
+  box-shadow: 0 0 clamp(4px, 1.4vmin, 8px) rgba(30,144,255,0.45);
 }
 
 .weapon-switch .ammo-strip i.off {
@@ -218,18 +218,18 @@ canvas {
 @media (max-width: 768px) {
   .weapon-switch {
     position: fixed !important;
-    right: 8px !important;
-    top: 8px !important;
+    right: clamp(6px, 2vmin, 18px) !important;
+    top: clamp(6px, 2vmin, 18px) !important;
     transform: none !important;
-    gap: 24px !important;
+    gap: clamp(12px, 3vmin, 32px) !important;
     z-index: 2147483647 !important;
   }
   .weapon-btn {
-    width: 88px !important;
-    height: 88px !important;
-    font-size: 44px !important;
+    width: clamp(56px, 11vmin, 104px) !important;
+    height: clamp(56px, 11vmin, 104px) !important;
+    font-size: clamp(28px, 5.5vmin, 52px) !important;
     padding: 0 !important;
-    border-width: 4px !important;
+    border-width: clamp(2px, 0.7vmin, 5px) !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
