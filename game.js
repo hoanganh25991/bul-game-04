@@ -2,9 +2,156 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-//
-canvas.width = 800;
-canvas.height = 480;
+/**
+ * Thiết lập kích thước canvas:
+ * - Hệ tọa độ/logic giữ nguyên theo kích thước gốc 800x480 (không vỡ vật lý game)
+ * - Kích thước hiển thị co giãn theo màn hình để "thu nhỏ/phóng to" phù hợp
+ */
+const BASE_WIDTH = 800;
+const BASE_HEIGHT = 480;
+
+// Kích thước nội bộ cho render/logic
+canvas.width = BASE_WIDTH;
+canvas.height = BASE_HEIGHT;
+
+// Kích thước hiển thị (CSS) theo màn hình, vẫn giữ đúng tỉ lệ 800:480
+function applyCanvasSize() {
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight * 0.8; // chừa chỗ cho HUD/nút
+    const scale = Math.min(maxW / BASE_WIDTH, maxH / BASE_HEIGHT);
+
+    canvas.style.width = Math.floor(BASE_WIDTH * scale) + 'px';
+    canvas.style.height = Math.floor(BASE_HEIGHT * scale) + 'px';
+}
+window.addEventListener('resize', applyCanvasSize);
+applyCanvasSize();
+
+// Sprites (SVG data URLs) và helper vẽ
+function svgUrl(svg) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
+function makeImage(url) { const img = new Image(); img.src = url; return img; }
+function drawSprite(ctx, img, x, y, w, h, flipX) {
+    ctx.save();
+    if (flipX) {
+        ctx.translate(x + w, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, 0, 0, w, h);
+    } else {
+        ctx.translate(x, y);
+        ctx.drawImage(img, 0, 0, w, h);
+    }
+    ctx.restore();
+}
+
+function drawSpriteFit(ctx, img, x, y, w, h, flipX) {
+    const iw = (img.naturalWidth || img.width || w) || 1;
+    const ih = (img.naturalHeight || img.height || h) || 1;
+    const scale = Math.min(w / iw, h / ih);
+    const dw = Math.max(1, Math.round(iw * scale));
+    const dh = Math.max(1, Math.round(ih * scale));
+    // Căn dưới (chân chạm đất) và căn giữa theo chiều ngang trong bbox
+    const ox = x + Math.floor((w - dw) / 2);
+    const oy = y + (h - dh);
+    ctx.save();
+    if (flipX) {
+        ctx.translate(ox + dw, oy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, 0, 0, dw, dh);
+    } else {
+        ctx.translate(ox, oy);
+        ctx.drawImage(img, 0, 0, dw, dh);
+    }
+    ctx.restore();
+}
+
+const PLAYER_IMG = makeImage(svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='64' viewBox='0 0 48 64'>
+ <defs>
+  <linearGradient id='gBody' x1='0' x2='0' y1='0' y2='1'>
+   <stop offset='0' stop-color='#e44'/>
+   <stop offset='1' stop-color='#a00'/>
+  </linearGradient>
+  <linearGradient id='gPants' x1='0' x2='0' y1='0' y2='1'>
+   <stop offset='0' stop-color='#611'/>
+   <stop offset='1' stop-color='#311'/>
+  </linearGradient>
+ </defs>
+ <ellipse cx='24' cy='60' rx='12' ry='4' fill='rgba(0,0,0,0.25)'/>
+ <circle cx='24' cy='12' r='7' fill='#ffccaa' stroke='#8a5a44' stroke-width='1'/>
+ <path d='M15 10 Q24 6 33 10' stroke='#331' stroke-width='3' fill='none'/>
+ <circle cx='21' cy='12' r='1.2' fill='#222'/>
+ <circle cx='27' cy='12' r='1.2' fill='#222'/>
+ <rect x='14' y='18' rx='6' ry='6' width='20' height='20' fill='url(#gBody)' stroke='#7a0a0a' stroke-width='1'/>
+ <rect x='8' y='20' rx='2' ry='2' width='8' height='12' fill='#ffccaa' stroke='#8a5a44' stroke-width='1'/>
+ <rect x='32' y='20' rx='2' ry='2' width='8' height='12' fill='#ffccaa' stroke='#8a5a44' stroke-width='1'/>
+ <rect x='14' y='36' width='20' height='3' fill='#222'/>
+ <rect x='16' y='39' rx='2' ry='2' width='7' height='18' fill='url(#gPants)' stroke='#200' stroke-width='1'/>
+ <rect x='25' y='39' rx='2' ry='2' width='7' height='18' fill='url(#gPants)' stroke='#200' stroke-width='1'/>
+ <rect x='14' y='56' width='11' height='3' fill='#222'/>
+ <rect x='23' y='56' width='11' height='3' fill='#222'/>
+</svg>`));
+
+const ENEMY_GUN_IMG = makeImage(svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='64' viewBox='0 0 48 64'>
+ <defs>
+  <linearGradient id='gSuit' x1='0' x2='0' y1='0' y2='1'>
+   <stop offset='0' stop-color='#3ebd5c'/>
+   <stop offset='1' stop-color='#1f7a34'/>
+  </linearGradient>
+ </defs>
+ <ellipse cx='24' cy='60' rx='12' ry='4' fill='rgba(0,0,0,0.25)'/>
+ <path d='M10 14 Q24 0 38 14 L38 18 L10 18 Z' fill='#215c2b' stroke='#103a18' stroke-width='1'/>
+ <rect x='17' y='12' width='14' height='8' rx='3' ry='3' fill='#e8d0b8' stroke='#8a5a44' stroke-width='1'/>
+ <rect x='18' y='15' width='12' height='3' rx='1.5' ry='1.5' fill='#9fe7ff' stroke='#2a6' stroke-width='0.5'/>
+ <rect x='14' y='20' width='20' height='20' rx='5' ry='5' fill='url(#gSuit)' stroke='#0e4d22' stroke-width='1'/>
+ <rect x='8' y='22' width='8' height='12' rx='2' ry='2' fill='url(#gSuit)' stroke='#0e4d22' stroke-width='1'/>
+ <rect x='32' y='22' width='8' height='12' rx='2' ry='2' fill='url(#gSuit)' stroke='#0e4d22' stroke-width='1'/>
+ <rect x='28' y='24' width='16' height='3' fill='#444'/>
+ <rect x='25' y='23' width='6' height='5' fill='#333' rx='1'/>
+ <rect x='16' y='40' width='7' height='18' rx='2' ry='2' fill='#2e8b57' stroke='#0e4d22' stroke-width='1'/>
+ <rect x='25' y='40' width='7' height='18' rx='2' ry='2' fill='#2e8b57' stroke='#0e4d22' stroke-width='1'/>
+ <rect x='14' y='58' width='11' height='3' fill='#222'/>
+ <rect x='23' y='58' width='11' height='3' fill='#222'/>
+</svg>`));
+
+const ENEMY_SWORD_IMG = makeImage(svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='64' viewBox='0 0 48 64'>
+ <defs>
+  <linearGradient id='gBlue' x1='0' x2='0' y1='0' y2='1'>
+   <stop offset='0' stop-color='#5aa0ff'/>
+   <stop offset='1' stop-color='#1b6fe0'/>
+  </linearGradient>
+ </defs>
+ <ellipse cx='24' cy='60' rx='12' ry='4' fill='rgba(0,0,0,0.25)'/>
+ <circle cx='24' cy='12' r='7' fill='#f0d8c0' stroke='#8a5a44' stroke-width='1'/>
+ <rect x='14' y='20' width='20' height='20' rx='6' ry='6' fill='url(#gBlue)' stroke='#0a3a9f' stroke-width='1'/>
+ <rect x='8' y='22' width='8' height='12' rx='2' ry='2' fill='url(#gBlue)' stroke='#0a3a9f' stroke-width='1'/>
+ <rect x='32' y='22' width='8' height='12' rx='2' ry='2' fill='url(#gBlue)' stroke='#0a3a9f' stroke-width='1'/>
+ <rect x='34' y='14' width='2' height='20' fill='#ddd' stroke='#aaa' stroke-width='0.5'/>
+ <rect x='33' y='14' width='4' height='2' fill='#caa'/>
+ <rect x='16' y='40' width='7' height='18' rx='2' ry='2' fill='#2a5bbf' stroke='#0a3a9f' stroke-width='1'/>
+ <rect x='25' y='40' width='7' height='18' rx='2' ry='2' fill='#2a5bbf' stroke='#0a3a9f' stroke-width='1'/>
+ <rect x='14' y='58' width='11' height='3' fill='#222'/>
+ <rect x='23' y='58' width='11' height='3' fill='#222'/>
+</svg>`));
+
+const MINITURRET_IMG = makeImage(svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>
+ <defs>
+  <linearGradient id='gTurret' x1='0' x2='0' y1='0' y2='1'>
+   <stop offset='0' stop-color='#6b7785'/>
+   <stop offset='1' stop-color='#3a3f44'/>
+  </linearGradient>
+ </defs>
+ <!-- Bóng đổ -->
+ <ellipse cx='24' cy='44' rx='14' ry='4' fill='rgba(0,0,0,0.25)'/>
+ <!-- Chân tripod -->
+ <rect x='8' y='40' width='32' height='4' rx='2' fill='#2d3238'/>
+ <rect x='12' y='28' width='4' height='16' rx='2' fill='#2d3238' transform='rotate(-20 14 36)'/>
+ <rect x='32' y='28' width='4' height='16' rx='2' fill='#2d3238' transform='rotate(20 34 36)'/>
+ <!-- Thân trụ -->
+ <rect x='18' y='22' width='12' height='14' rx='3' fill='url(#gTurret)' stroke='#222' stroke-width='1'/>
+ <!-- Nòng súng -->
+ <rect x='28' y='24' width='16' height='6' rx='2' fill='#333'/>
+ <rect x='44' y='25' width='2' height='4' fill='#222'/>
+ <!-- Hộp đạn -->
+ <rect x='18' y='24' width='6' height='8' rx='1.5' fill='#50555a'/>
+</svg>`));
 
 // Các biến trạng thái trò chơi
 let score = 0;
@@ -20,22 +167,28 @@ let reloadRemaining = 0;
  // Camera và thế giới
 let cameraX = 0; // vị trí camera theo trục X (cuộn ngang)
 let groundEnd = 800; // chiều dài nền đất đã sinh (bắt đầu 800px)
-const LEVEL_LENGTH = 6000; // độ dài màn 1 (có thể điều chỉnh)
+let LEVEL_LENGTH = 6000; // sẽ thay đổi theo màn
+let currentLevel = 1;
+const LEVELS = {
+    1: { length: 6000, boss: 'tank' },
+    2: { length: 6500, boss: 'tower' }
+};
 let levelWon = false; // trạng thái thắng màn
 
 // Tạo nhân vật người chơi
 const player = {
     x: 100,
-    y: 380,
-    width: 50,
-    height: 50,
+    y: 366,
+    width: 48,
+    height: 64,
     speed: 5,
     velX: 0,
     velY: 0,
     jumping: false,
     grounded: false,
     shooting: false,
-    health: 100,
+    health: 1000,
+    maxHealth: 1000,
     facingRight: true,
     specialAttack: false,
     specialCooldown: 0,
@@ -99,6 +252,8 @@ function generateScenerySegment(startX, segmentWidth) {
         const x = randInt(startX, segEnd - w);
         const y = 430 - h;
         scenery.push({ kind: 'hill', x, y, width: w, height: h, color: '#8FBC8F', layer: 'bg', parallax: 0.5 });
+        // Tạo bề mặt đồi có thể đứng (không vẽ, chỉ va chạm)
+        platforms.push({ x: x + 4, y: y, width: Math.max(24, w - 8), height: 6, invisible: true, temp: true });
     }
 
     // Cây (trung)
@@ -130,6 +285,18 @@ function generateScenerySegment(startX, segmentWidth) {
         const y = 430 - h;
         scenery.push({ kind: 'rock', x, y, width: w, height: h, color: '#A9A9A9', layer: 'fg', parallax: 1.1 });
     }
+
+    // Mỏm đá (ledge) làm cảnh nhưng có thể đứng
+    const ledgeCount = randInt(0, 2);
+    for (let i = 0; i < ledgeCount; i++) {
+        const w = randInt(80, 160);
+        const h = 14;
+        const x = randInt(startX, segEnd - w);
+        const y = randInt(240, 380);
+        scenery.push({ kind: 'ledge', x, y, width: w, height: h, color: '#8B7D6B', layer: 'mg', parallax: 1.0 });
+        // Nền va chạm tương ứng (ẩn)
+        platforms.push({ x, y, width: w, height: h, invisible: true, temp: true });
+    }
 }
 
 // Đảm bảo luôn có cảnh vật sinh ra đủ phía trước camera và dọn phía sau
@@ -144,6 +311,14 @@ function ensureScenery() {
         const s = scenery[i];
         if (s.x + s.width < cameraX - 1200) {
             scenery.splice(i, 1);
+            i--;
+        }
+    }
+    // Dọn dẹp các nền va chạm tạm thời của cảnh vật
+    for (let i = 0; i < platforms.length; i++) {
+        const p = platforms[i];
+        if (p && p.temp && p.x + p.width < cameraX - 1200) {
+            platforms.splice(i, 1);
             i--;
         }
     }
@@ -190,39 +365,14 @@ document.addEventListener('keyup', function(e) {
     if (e.code === 'Numpad1') keys[97] = false;
 });
 
-// Thêm xử lý cho nút trên mobile
-document.getElementById('left').addEventListener('touchstart', () => keys[37] = true);
-document.getElementById('left').addEventListener('touchend', () => keys[37] = false);
-document.getElementById('right').addEventListener('touchstart', () => keys[39] = true);
-document.getElementById('right').addEventListener('touchend', () => keys[39] = false);
-document.getElementById('jump').addEventListener('touchstart', () => keys[38] = true);
-document.getElementById('jump').addEventListener('touchend', () => keys[38] = false);
-document.getElementById('shoot').addEventListener('touchstart', () => {
-    if (currentWeapon === 'gun' && ammo <= 0) return;
-    keys[32] = true;
-});
-document.getElementById('shoot').addEventListener('touchend', () => keys[32] = false);
-document.getElementById('special-attack').addEventListener('touchstart', () => keys[88] = true);
-document.getElementById('special-attack').addEventListener('touchend', () => keys[88] = false);
-document.getElementById('defend').addEventListener('touchstart', () => { keys[49] = true; keys[97] = true; });
-document.getElementById('defend').addEventListener('touchend', () => { keys[49] = false; keys[97] = false; });
-
-// Thêm chuột click cho các nút
-document.getElementById('left').addEventListener('mousedown', () => keys[37] = true);
-document.getElementById('left').addEventListener('mouseup', () => keys[37] = false);
-document.getElementById('right').addEventListener('mousedown', () => keys[39] = true);
-document.getElementById('right').addEventListener('mouseup', () => keys[39] = false);
-document.getElementById('jump').addEventListener('mousedown', () => keys[38] = true);
-document.getElementById('jump').addEventListener('mouseup', () => keys[38] = false);
-document.getElementById('shoot').addEventListener('mousedown', () => {
-    if (currentWeapon === 'gun' && ammo <= 0) return;
-    keys[32] = true;
-});
-document.getElementById('shoot').addEventListener('mouseup', () => keys[32] = false);
-document.getElementById('special-attack').addEventListener('mousedown', () => keys[88] = true);
-document.getElementById('special-attack').addEventListener('mouseup', () => keys[88] = false);
-document.getElementById('defend').addEventListener('mousedown', () => { keys[49] = true; keys[97] = true; });
-document.getElementById('defend').addEventListener('mouseup', () => { keys[49] = false; keys[97] = false; });
+/** Đã gỡ bỏ hệ thống điều khiển cảm ứng/chuột cho mobile (nút ảo, "vuốt").
+ *  Giữ lại điều khiển bằng bàn phím:
+ *  - Trái/Phải: Mũi tên
+ *  - Nhảy: Mũi tên lên
+ *  - Tấn công: Space
+ *  - Tuyệt chiêu: X
+ *  - Bất tử: 1
+ */
 
 // Nút nạp đạn (5 giây)
 const btnReload = document.getElementById('reload');
@@ -405,11 +555,12 @@ function createEnemy() {
 const dir = -side;
 enemies.push({
         x: x,
-        y: 380,
-        width: 40,
-        height: 50,
+        y: 366,
+        width: 48,
+        height: 64,
         speed: (isSwordsman ? 1.5 : 2) * dir, // Di chuyển ngược hướng xuất hiện
         health: isSwordsman ? 40 : 30,
+        maxHealth: isSwordsman ? 40 : 30,
         type: isSwordsman ? 'swordsman' : 'basic',
         attackCooldown: 0,
         ammo: isSwordsman ? 0 : 6,
@@ -419,7 +570,7 @@ enemies.push({
 }
 
 // Tạo kẻ địch mỗi 3 giây
-const enemyInterval = setInterval(createEnemy, 3000);
+let enemyIntervalId = setInterval(createEnemy, 3000);
 
 // Bảo đảm nền đất được sinh thêm về bên phải khi camera tiến tới
 function ensureGround() {
@@ -483,7 +634,7 @@ function spawnBossTank() {
     if (bossSpawned) return;
     bossSpawned = true;
     bossActive = true;
-    try { clearInterval(enemyInterval); } catch (_) {}
+    try { clearInterval(enemyIntervalId); } catch (_) {}
     enemies.length = 0; // dọn địch lẻ
 
     const width = 160, height = 80;
@@ -491,6 +642,7 @@ function spawnBossTank() {
     const by = 430 - height;
 
     boss = {
+        type: 'tank',
         x: bx,
         y: by,
         width,
@@ -542,16 +694,12 @@ function updateBossTank() {
         for (let i = 0; i < 3; i++) {
             const sx = dir > 0 ? b.x + b.width - 10 : b.x - 10;
             const sy = b.y + 18 + i * 16;
-            const dx = (player.x + player.width / 2) - sx;
-            const dy = (player.y + player.height / 2) - sy;
-            const ang = Math.atan2(dy, dx);
             const sp = 4;
             enemyBullets.push({
                 type: 'missile',
-                x: sx, y: sy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+                x: sx, y: sy, vx: dir * sp, vy: 0,
                 width: 12, height: 6,
-                color: '#FFA500', damage: 18,
-                turn: 0.06, maxSpeed: 6
+                color: '#FFA500', damage: 18
             });
         }
         b.missileCooldown = 180; // ~3s
@@ -578,6 +726,213 @@ function updateBossTank() {
     }
 
     if (b.hitTimer > 0) b.hitTimer--;
+}
+
+function spawnBossTower() {
+    if (bossSpawned) return;
+    bossSpawned = true;
+    bossActive = true;
+    try { clearInterval(enemyIntervalId); } catch (_) {}
+    enemies.length = 0;
+
+    const width = 120, height = 220;
+    const bx = Math.max(player.x + 520, LEVEL_LENGTH + 140);
+    const by = 430 - height;
+
+    boss = {
+        type: 'tower',
+        x: bx,
+        y: by,
+        width,
+        height,
+        health: 900,
+        maxHealth: 900,
+        mgCooldown: 0,
+        mgBurst: 0,
+        mgBurstCount: 0,
+        laserState: 'idle',      // idle -> charge -> fire -> cooldown
+        laserTimer: 0,
+        laserCooldown: 210,      // ~3.5s
+        laserAngle: 0,
+        laserTick: 0,            // nhịp gây sát thương laser
+        reinforceCooldown: 360,  // ~6s
+        hitTimer: 0
+    };
+
+    // Spawn 2 trụ súng máy mini hai bên
+    const turretY = 430 - 40;
+    enemies.push({
+        x: bx - 140, y: turretY, width: 30, height: 40,
+        speed: 0, health: 80, maxHealth: 80, type: 'miniturret',
+        attackCooldown: 20, facingRight: true, color: '#4C6FFF'
+    });
+    enemies.push({
+        x: bx + width + 110, y: turretY, width: 30, height: 40,
+        speed: 0, health: 80, maxHealth: 80, type: 'miniturret',
+        attackCooldown: 20, facingRight: false, color: '#4C6FFF'
+    });
+
+    // Sân đấu rộng
+    groundEnd = Math.max(groundEnd, bx + 1600);
+}
+
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const vx = x2 - x1, vy = y2 - y1;
+    const wx = px - x1, wy = py - y1;
+    const c1 = vx * wx + vy * wy;
+    if (c1 <= 0) return Math.hypot(px - x1, py - y1);
+    const c2 = vx * vx + vy * vy;
+    if (c2 <= c1) return Math.hypot(px - x2, py - y2);
+    const b = c1 / c2;
+    const bx = x1 + b * vx, by = y1 + b * vy;
+    return Math.hypot(px - bx, py - by);
+}
+
+function updateBossTower() {
+    if (!boss || boss.type !== 'tower') return;
+    const b = boss;
+
+    // Súng máy: loạt nhanh có nghỉ
+    if (b.mgBurst > 0) {
+        if (b.mgCooldown <= 0) {
+            const px = player.x + player.width / 2;
+            const py = player.y + player.height / 2;
+            const mx = b.x + b.width / 2;
+            const my = b.y + 40;
+            const dx = px - mx;
+            const dy = py - my;
+            const ang = Math.atan2(dy, dx);
+            const sp = 12;
+            enemyBullets.push({
+                x: mx, y: my, width: 10, height: 4,
+                vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+                type: 'aimed', color: '#FF4444', damage: 6
+            });
+            b.mgCooldown = 5;
+            b.mgBurstCount++;
+            if (b.mgBurstCount >= 18) { b.mgBurst = 0; b.mgBurstCount = 0; b.mgCooldown = 35; }
+        } else b.mgCooldown--;
+    } else {
+        if (b.mgCooldown <= 0) b.mgBurst = 1;
+        else b.mgCooldown--;
+    }
+
+    // Laser: vòng đời idle -> charge -> fire -> cooldown
+    if (b.laserTick > 0) b.laserTick--;
+    if (b.laserState === 'idle') {
+        if (b.laserCooldown > 0) b.laserCooldown--;
+        else {
+            b.laserState = 'charge';
+            b.laserTimer = 45; // 0.75s
+            const px = player.x + player.width / 2;
+            const py = player.y + player.height / 2;
+            const mx = b.x + b.width / 2;
+            const my = b.y + 30;
+            b.laserAngle = Math.atan2(py - my, px - mx);
+        }
+    } else if (b.laserState === 'charge') {
+        b.laserTimer--;
+        // cập nhật góc khóa mục tiêu trong lúc nạp
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const mx = b.x + b.width / 2;
+        const my = b.y + 30;
+        const target = Math.atan2(py - my, px - mx);
+        // mượt mà theo dõi
+        const da = normalizeAngle(target - b.laserAngle);
+        b.laserAngle = b.laserAngle + Math.sign(da) * Math.min(Math.abs(da), 0.08);
+        if (b.laserTimer <= 0) { b.laserState = 'fire'; b.laserTimer = 60; }
+    } else if (b.laserState === 'fire') {
+        b.laserTimer--;
+        const mx = b.x + b.width / 2;
+        const my = b.y + 30;
+        const len = 1400;
+        const x2 = mx + Math.cos(b.laserAngle) * len;
+        const y2 = my + Math.sin(b.laserAngle) * len;
+        const pcx = player.x + player.width / 2;
+        const pcy = player.y + player.height / 2;
+        const dist = pointToSegmentDistance(pcx, pcy, mx, my, x2, y2);
+        if (dist < 14 && player.damageCooldown <= 0 && b.laserTick <= 0) {
+            if (!player.defending) {
+                player.health -= 12;
+                player.damageCooldown = 45;
+                document.getElementById('health').textContent = 'HP: ' + player.health;
+                if (player.health <= 0) {
+                    gameOver = true;
+                    alert('Game Over! Điểm của bạn: ' + score);
+                    document.location.reload();
+                }
+            }
+            b.laserTick = 10;
+        }
+        if (b.laserTimer <= 0) { b.laserState = 'idle'; b.laserCooldown = 240; }
+    }
+
+    // Tiếp viện trụ mini
+    if (b.reinforceCooldown > 0) b.reinforceCooldown--;
+    else {
+        const existing = enemies.filter(e => e.type === 'miniturret').length;
+        if (existing < 2) {
+            const tY = 430 - 40;
+            const left = { x: b.x - 140, y: tY };
+            const right = { x: b.x + b.width + 110, y: tY };
+            const spot = (existing === 0) ? left : right;
+            enemies.push({
+                x: spot.x, y: spot.y, width: 30, height: 40,
+                speed: 0, health: 80, maxHealth: 80, type: 'miniturret',
+                attackCooldown: 20, facingRight: (spot === left), color: '#4C6FFF'
+            });
+        }
+        b.reinforceCooldown = 420;
+    }
+
+    if (b.hitTimer > 0) b.hitTimer--;
+}
+
+function startLevel(n) {
+    currentLevel = n;
+    // đặt chiều dài màn
+    LEVEL_LENGTH = (LEVELS[n] || LEVELS[1]).length;
+
+    // reset trạng thái
+    boss = null; bossActive = false; bossSpawned = false;
+    levelWon = false; gameOver = false;
+
+    // reset camera & nền
+    cameraX = 0;
+    groundEnd = 800;
+
+    // dọn các mảng
+    bullets.length = 0;
+    enemyBullets.length = 0;
+    slashes.length = 0;
+    enemies.length = 0;
+    scenery.length = 0;
+    sceneryEnd = 0;
+
+    // reset platforms mặc định
+    platforms.length = 0;
+    platforms.push(
+        { x: 0, y: 430, width: 800, height: 50 },
+        { x: 200, y: 350, width: 100, height: 20 },
+        { x: 400, y: 300, width: 100, height: 20 },
+        { x: 600, y: 250, width: 100, height: 20 }
+    );
+
+    // restart spawn địch lẻ
+    if (typeof enemyIntervalId !== 'undefined' && enemyIntervalId) {
+        try { clearInterval(enemyIntervalId); } catch (_) {}
+    }
+    enemyIntervalId = setInterval(createEnemy, 3000);
+
+    // reset người chơi
+    player.x = 100; player.y = 366;
+    player.velX = 0; player.velY = 0;
+    player.jumping = false; player.grounded = false;
+    player.damageCooldown = 0;
+    // hồi ít máu nếu quá thấp
+    player.health = Math.max(player.health, 60);
+    document.getElementById('health').textContent = 'HP: ' + player.health;
 }
 // Hàm sử dụng tuyệt chiêu
 function useSpecialAttack() {
@@ -706,7 +1061,9 @@ function update() {
 
     // Kích hoạt trùm khi đến cuối màn
     if (!bossSpawned && player.x + player.width >= LEVEL_LENGTH - 10) {
-        spawnBossTank();
+        const cfg = LEVELS[currentLevel] || LEVELS[1];
+        if (cfg.boss === 'tower') spawnBossTower();
+        else spawnBossTank();
     }
     
     if (player.y <= 0) {
@@ -767,25 +1124,16 @@ function update() {
     const b = enemyBullets[i];
     // Cập nhật theo loại đạn
     if (b.type === 'missile') {
-        const px = player.x + player.width / 2;
-        const py = player.y + player.height / 2;
-        const dx = px - b.x;
-        const dy = py - b.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = dx / len;
-        const ny = dy / len;
-        const turn = b.turn || 0.05;
-        b.vx = (b.vx || 0) * (1 - turn) + nx * (b.maxSpeed || 6) * turn;
-        b.vy = (b.vy || 0) * (1 - turn) + ny * (b.maxSpeed || 6) * turn;
-        const spd = Math.hypot(b.vx, b.vy) || 1;
-        const maxS = b.maxSpeed || 6;
-        if (spd > maxS) { b.vx = b.vx / spd * maxS; b.vy = b.vy / spd * maxS; }
-        b.x += b.vx;
-        b.y += b.vy;
+        // Không còn tự động bám theo người chơi: di chuyển theo vận tốc ban đầu
+        b.x += (b.vx || 0);
+        b.y += (b.vy || 0);
     } else if (b.type === 'zigzag') {
         b.t = (b.t || 0) + (b.freq || 0.25);
         b.x += b.vx || (b.speed || 8);
         b.y = (b.baseY || b.y) + Math.sin(b.t) * (b.amp || 18);
+    } else if (b.type === 'aimed') {
+        b.x += b.vx;
+        b.y += b.vy;
     } else {
         b.x += b.speed;
     }
@@ -803,7 +1151,7 @@ function update() {
             if (!player.defending) {
                 player.health -= b.damage || 10;
                 player.damageCooldown = 60;
-                document.getElementById('health').textContent = 'Máu: ' + player.health;
+                document.getElementById('health').textContent = 'HP: ' + player.health;
                 player.velX = b.speed > 0 ? 5 : -5;
 
                 if (player.health <= 0) {
@@ -823,7 +1171,7 @@ function update() {
         if (!player.defending) {
             player.health -= 15;
             player.damageCooldown = 60;
-            document.getElementById('health').textContent = 'Máu: ' + player.health;
+            document.getElementById('health').textContent = 'HP: ' + player.health;
             player.velX = (player.x < boss.x ? -7 : 7);
             if (player.health <= 0) {
                 gameOver = true;
@@ -869,7 +1217,7 @@ function update() {
             if (!player.defending) {
                 player.health -= s.damage;
                 player.damageCooldown = 60;
-                document.getElementById('health').textContent = 'Máu: ' + player.health;
+                document.getElementById('health').textContent = 'HP: ' + player.health;
                 player.velX = s.vx > 0 ? 7 : -7;
                 if (player.health <= 0) {
                     gameOver = true;
@@ -972,6 +1320,27 @@ function update() {
                 e.attackCooldown = 50; // ~0.8s
             }
             if (e.attackCooldown > 0) e.attackCooldown--;
+        } else if (e.type === 'miniturret') {
+            // Trụ mini: đứng yên, bắn súng máy nhắm người chơi
+            const px = player.x + player.width / 2;
+            const py = player.y + player.height / 2;
+            const cx = e.x + e.width / 2;
+            const cy = e.y + e.height * 0.3;
+            e.facingRight = (px >= cx);
+            if (e.attackCooldown <= 0) {
+                const dx2 = px - cx;
+                const dy2 = py - cy;
+                const ang = Math.atan2(dy2, dx2) + (Math.random() - 0.5) * 0.06; // nhẹ spread
+                const sp = 11;
+                enemyBullets.push({
+                    x: cx, y: cy, width: 8, height: 4,
+                    vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+                    type: 'aimed', color: '#FF5555', damage: 6
+                });
+                e.attackCooldown = 6; // ~10 viên/giây
+            } else {
+                e.attackCooldown--;
+            }
         } else {
             // Địch thường: di chuyển theo speed cố định
             e.x += e.speed;
@@ -1003,7 +1372,7 @@ function update() {
                 if (!player.defending) {
                     player.health -= 10;
                     player.damageCooldown = 60; // miễn thương 1 giây (giả sử ~60fps)
-                    document.getElementById('health').textContent = 'Máu: ' + player.health;
+                    document.getElementById('health').textContent = 'HP: ' + player.health;
                     
                     // Đẩy người chơi lùi mạnh hơn một chút
                     player.velX = enemies[i].speed > 0 ? -7 : 7;
@@ -1019,8 +1388,11 @@ function update() {
         }
     }
     
-    // Cập nhật trùm xe tăng
-    if (bossActive && boss) updateBossTank();
+    // Cập nhật trùm
+    if (bossActive && boss) {
+        if (boss.type === 'tower') updateBossTower();
+        else updateBossTank();
+    }
 
     // Giảm thời gian hồi tuyệt chiêu
     if (player.specialCooldown > 0) {
@@ -1043,9 +1415,14 @@ function update() {
     // Thắng màn sau khi hạ trùm
     if (!levelWon && bossSpawned && !bossActive && (!boss || boss.health <= 0)) {
         levelWon = true;
-        gameOver = true;
-        alert('Chúc mừng! Bạn đã HẠ TRÙM xe tăng!');
-        document.location.reload();
+        if (currentLevel === 1) {
+            // Sang màn 2
+            startLevel(2);
+        } else {
+            gameOver = true;
+            alert('Chúc mừng! Bạn đã hoàn thành Màn 2 và hạ trụ pháo khổng lồ!');
+            document.location.reload();
+        }
     }
 }
 
@@ -1053,6 +1430,8 @@ function update() {
 function render() {
     // Xóa canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Bật làm mịn ảnh để sprite rõ nét hơn khi co giãn
+    ctx.imageSmoothingEnabled = true;
     
     // Bầu trời + cảnh vật xa
     ctx.fillStyle = '#87CEEB';
@@ -1077,7 +1456,9 @@ function render() {
     // Vẽ nền
     ctx.fillStyle = '#663300'; // Màu nâu cho đất
     platforms.forEach(platform => {
-        ctx.fillRect(platform.x - cameraX, platform.y, platform.width, platform.height);
+        if (!platform.invisible) {
+            ctx.fillRect(platform.x - cameraX, platform.y, platform.width, platform.height);
+        }
     });
 
     // Vẽ cảnh vật trung (parallax)
@@ -1103,6 +1484,10 @@ function render() {
                 ctx.fillStyle = obj.color;
                 ctx.fillRect(screenX, obj.y, obj.width, obj.height);
                 break;
+            case 'ledge':
+                ctx.fillStyle = obj.color || '#8B7D6B';
+                ctx.fillRect(screenX, obj.y, obj.width, obj.height);
+                break;
         }
     });
 
@@ -1110,9 +1495,19 @@ function render() {
     ctx.fillStyle = '#FFD700';
     ctx.fillRect(LEVEL_LENGTH - cameraX, 0, 6, canvas.height);
     
-    // Vẽ người chơi
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - cameraX, player.y, player.width, player.height);
+    // Vẽ người chơi (sprite fit theo bbox, căn chân)
+    drawSpriteFit(ctx, PLAYER_IMG, player.x - cameraX, player.y, player.width, player.height, !player.facingRight);
+
+    // Thanh HP người chơi (nằm ngang)
+    const hpRatio = Math.max(0, Math.min(1, player.health / (player.maxHealth || 1000)));
+    const pBarW = 60, pBarH = 6;
+    const pBarX = (player.x - cameraX) + Math.floor((player.width - pBarW) / 2);
+    const pBarY = player.y - 12;
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pBarX, pBarY, pBarW, pBarH);
+    ctx.fillStyle = '#00FF00';
+    ctx.fillRect(pBarX + 1, pBarY + 1, Math.floor((pBarW - 2) * hpRatio), pBarH - 2);
 
     
     // Vẽ đạn
@@ -1155,29 +1550,41 @@ function render() {
     
     // Vẽ kẻ địch
     enemies.forEach(enemy => {
-        // Thân địch
-        ctx.fillStyle = enemy.color || '#00FF00'; // màu theo loại địch
+        // Thân địch (sprite)
         const ex = enemy.x - cameraX;
         const ey = enemy.y;
-        ctx.fillRect(ex, ey, enemy.width, enemy.height);
+        const sprite = (enemy.type === 'swordsman')
+            ? ENEMY_SWORD_IMG
+            : (enemy.type === 'miniturret' ? MINITURRET_IMG : ENEMY_GUN_IMG);
+        drawSpriteFit(ctx, sprite, ex, ey, enemy.width, enemy.height, !enemy.facingRight);
+        // Hiệu ứng trúng đòn (tô sáng lại chính sprite, không che hình bằng khối vuông)
         if (enemy.hitTimer && enemy.hitTimer > 0) {
-            ctx.fillStyle = 'rgba(255,255,255,0.6)';
-            ctx.fillRect(ex, ey, enemy.width, enemy.height);
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            drawSpriteFit(ctx, sprite, ex, ey, enemy.width, enemy.height, !enemy.facingRight);
+            ctx.restore();
+        }
+
+        // Thanh HP kẻ địch (nằm ngang)
+        {
+            const eHpRatio = Math.max(0, Math.min(1, (enemy.health || 0) / (enemy.maxHealth || (enemy.health || 1))));
+            const ehBarW = 34, ehBarH = 5;
+            const ehBarX = ex + Math.floor((enemy.width - ehBarW) / 2);
+            const ehBarY = ey - 18;
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(ehBarX, ehBarY, ehBarW, ehBarH);
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(ehBarX + 1, ehBarY + 1, Math.floor((ehBarW - 2) * eHpRatio), ehBarH - 2);
         }
 
         // Địch thường (xanh lá) cầm súng lục
         if (enemy.type === 'basic') {
-            // Vẽ súng lục đơn giản gắn bên mặt đang nhìn
-            ctx.fillStyle = '#333333';
-            const gunW = 10, gunH = 4;
-            const gunY = ey + Math.floor(enemy.height * 0.35);
-            const gunX = enemy.facingRight ? ex + enemy.width : ex - gunW;
-            ctx.fillRect(gunX, gunY, gunW, gunH);
 
-            // Cột đạn trên đầu
-            const barW = 6, barH = 30;
+            // Cột đạn nằm ngang trên đầu
+            const barW = 36, barH = 6;
             const barX = ex + Math.floor((enemy.width - barW) / 2);
-            const barY = ey - 8 - barH;
+            const barY = ey - 10;
             // Viền
             ctx.strokeStyle = '#222222';
             ctx.lineWidth = 1;
@@ -1190,45 +1597,88 @@ function render() {
             else if (ammo === 1) ammoColor = '#FF0000';
             else if (ammo === 0) ammoColor = '#000000';
 
-            // Chiều cao theo tỷ lệ đạn còn
-            const fillH = Math.floor((ammo / 6) * barH);
-            const fillY = barY + (barH - fillH);
+            // Chiều rộng theo tỷ lệ đạn còn
+            const fillW = Math.floor((ammo / 6) * barW);
             ctx.fillStyle = ammoColor;
-            ctx.fillRect(barX + 1, fillY + 1, barW - 2, Math.max(0, fillH - 2));
+            ctx.fillRect(barX + 1, barY + 1, Math.max(0, fillW - 2), barH - 2);
         }
     });
 
-    // Vẽ trùm xe tăng
+    // Vẽ trùm/boss
     if (bossActive && boss) {
         const bx = boss.x - cameraX;
         const by = boss.y;
 
-        // Xích (treads)
-        ctx.fillStyle = '#444';
-        ctx.fillRect(bx, by + boss.height - 18, boss.width, 18);
+        if (boss.type === 'tank' || !boss.type) {
+            // Xích (treads)
+            ctx.fillStyle = '#444';
+            ctx.fillRect(bx, by + boss.height - 18, boss.width, 18);
 
-        // Thân xe
-        ctx.fillStyle = '#556B2F';
-        ctx.fillRect(bx + 8, by + 16, boss.width - 16, boss.height - 34);
+            // Thân xe
+            ctx.fillStyle = '#556B2F';
+            ctx.fillRect(bx + 8, by + 16, boss.width - 16, boss.height - 34);
 
-        // Tháp pháo
-        ctx.fillStyle = '#6B8E23';
-        const turretW = boss.width * 0.5;
-        const turretH = 24;
-        const tx = bx + (boss.width - turretW) / 2;
-        const ty = by + 12;
-        ctx.fillRect(tx, ty, turretW, turretH);
+            // Tháp pháo
+            ctx.fillStyle = '#6B8E23';
+            const turretW = boss.width * 0.5;
+            const turretH = 24;
+            const tx = bx + (boss.width - turretW) / 2;
+            const ty = by + 12;
+            ctx.fillRect(tx, ty, turretW, turretH);
 
-        // Nòng súng máy
-        ctx.fillStyle = '#333';
-        const dir = (player.x + player.width / 2) >= (boss.x + boss.width / 2) ? 1 : -1;
-        const mgX = dir > 0 ? tx + turretW : tx;
-        ctx.fillRect(mgX - (dir < 0 ? 8 : 0), ty + 8, 40, 8);
+            // Nòng súng máy
+            ctx.fillStyle = '#333';
+            const dir = (player.x + player.width / 2) >= (boss.x + boss.width / 2) ? 1 : -1;
+            const mgX = dir > 0 ? tx + turretW : tx;
+            ctx.fillRect(mgX - (dir < 0 ? 8 : 0), ty + 8, 40, 8);
 
-        // Nhấp nháy khi trúng đòn
-        if (boss.hitTimer && boss.hitTimer > 0) {
-            ctx.fillStyle = 'rgba(255,255,255,0.35)';
-            ctx.fillRect(bx, by, boss.width, boss.height);
+            // Nhấp nháy khi trúng đòn
+            if (boss.hitTimer && boss.hitTimer > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.fillRect(bx, by, boss.width, boss.height);
+            }
+        } else if (boss.type === 'tower') {
+            // Đế
+            ctx.fillStyle = '#444';
+            ctx.fillRect(bx - 10, by + boss.height - 12, boss.width + 20, 12);
+            // Thân trụ
+            ctx.fillStyle = '#5B6770';
+            ctx.fillRect(bx + 20, by + 20, boss.width - 40, boss.height - 32);
+            // Đầu pháo
+            ctx.fillStyle = '#3A3F44';
+            ctx.fillRect(bx + 10, by, boss.width - 20, 34);
+            // Nòng súng máy phía trước
+            ctx.fillStyle = '#333';
+            ctx.fillRect(bx + boss.width / 2 - 8, by + 10, 16, 26);
+
+            // Laser render
+            if (boss.laserState === 'charge' || boss.laserState === 'fire') {
+                const mx = boss.x + boss.width / 2 - cameraX;
+                const my = boss.y + 30;
+                const len = 1400;
+                const x2 = mx + Math.cos(boss.laserAngle) * len;
+                const y2 = my + Math.sin(boss.laserAngle) * len;
+
+                if (boss.laserState === 'charge') {
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
+                    ctx.lineWidth = 8;
+                    ctx.shadowColor = 'rgba(255, 0, 0, 0.6)';
+                    ctx.shadowBlur = 14;
+                }
+                ctx.beginPath();
+                ctx.moveTo(mx, my);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            if (boss.hitTimer && boss.hitTimer > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.fillRect(bx, by, boss.width, boss.height);
+            }
         }
 
         // Thanh máu trùm
@@ -1260,7 +1710,7 @@ function render() {
     }
     
     // Cập nhật UI
-    document.getElementById('health').textContent = 'Máu: ' + player.health;
+    document.getElementById('health').textContent = 'HP: ' + player.health;
     document.getElementById('score').textContent = 'Điểm: ' + score;
     const defEl = document.getElementById('defense-status');
     if (defEl) defEl.textContent = 'Bất tử: ' + (player.defending ? 'Bật' : 'Tắt');
@@ -1296,5 +1746,22 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Bắt đầu trò chơi
-gameLoop();
+// Bắt đầu trò chơi sau khi tải xong sprite
+function waitImage(img) {
+    return new Promise((resolve) => {
+        if (img && img.complete) return resolve();
+        if (!img) return resolve();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+    });
+}
+let spritesReady = false;
+Promise.all([
+    waitImage(PLAYER_IMG),
+    waitImage(ENEMY_GUN_IMG),
+    waitImage(ENEMY_SWORD_IMG)
+]).then(() => {
+    spritesReady = true;
+    startLevel(1);
+    gameLoop();
+});

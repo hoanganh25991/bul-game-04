@@ -261,3 +261,23 @@ canvas {
     background-color: rgba(255,215,0,0.5);
   }
 }
+
+/* Tắt hệ thống điều khiển cảm ứng/nút ảo để loại bỏ "vuốt" và overlay chiếm chỗ */
+.mobile-controls {
+  display: none !important;
+}
+
+/* Ngăn các cử chỉ vuốt/zoom mặc định của trình duyệt tác động vào game */
+html, body {
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
